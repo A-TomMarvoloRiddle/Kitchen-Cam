@@ -1,0 +1,30 @@
+description: Ultralytics best model trained on merged_hygiene/data.yaml
+author: Ultralytics
+date: '2026-06-29T20:47:41.153912'
+version: 8.4.82
+license: AGPL-3.0 License (https://ultralytics.com/license)
+docs: https://docs.ultralytics.com
+stride: 32
+task: detect
+batch: 1
+imgsz:
+- 640
+- 640
+names:
+  0: apron
+  1: no_apron
+  2: gloves
+  3: no_gloves
+  4: hairnet
+  5: no_hairnet
+  6: with_mask
+  7: without_mask
+args:
+  data: null
+  batch: 1
+  fraction: 1.0
+  quantize: null
+  dynamic: false
+  nms: false
+channels: 3
+end2end: false
