@@ -93,3 +93,9 @@ display:
     violation: [0, 0, 255]         # Red (BGR)
     pest: [0, 165, 255]            # Orange (BGR)
     text: [255, 255, 255]          # White (BGR)
+
+# --- Output Video ---
+output:
+  save_video: true                 # Set to true to save the annotated video feed
+  output_dir: "output"             # Directory to save the output video
+  filename: "output.mp4"           # Filename for the saved video
