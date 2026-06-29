@@ -75,6 +75,7 @@ class LoggingConfig(BaseModel):
 
 
 class PerformanceConfig(BaseModel):
+    enable_pest_detection: bool = True
     process_every_n_frames: int = 2
     pest_check_every_n_frames: int = 10
     max_batch_size: int = 1

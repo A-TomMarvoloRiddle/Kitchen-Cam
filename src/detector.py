@@ -106,7 +106,7 @@ class Detector:
 
         # ── Step 5: Pest Detection (periodic, via SAHI) ──
         pest_interval = self._config.performance.pest_check_every_n_frames
-        if self._config.sahi.enabled and self._frame_index % pest_interval == 0:
+        if self._config.performance.enable_pest_detection and self._frame_index % pest_interval == 0:
             pest_detections = self._run_pest_detection(frame)
             output.pest_detections = pest_detections
 

@@ -111,7 +111,11 @@ def main() -> None:
     if config.output.save_video:
         out_dir = Path(config.output.output_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
-        out_path = out_dir / config.output.filename
+        
+        # Derive output filename from input source
+        source_name = TelemetryLogger._derive_source_name(config.camera.source)
+        out_filename = f"{source_name}-output.mp4"
+        out_path = out_dir / out_filename
         
         fps = camera.fps if camera.fps > 0 else 30.0
         fourcc = cv2.VideoWriter_fourcc(*'mp4v') # type: ignore
