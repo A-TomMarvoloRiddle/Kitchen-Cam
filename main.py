@@ -16,6 +16,8 @@ import sys
 import time
 from pathlib import Path
 
+import cv2
+
 from src.camera import CameraStream
 from src.config import AppConfig, load_config
 from src.detector import Detector
@@ -96,7 +98,7 @@ def main() -> None:
     detector = Detector(config, model_manager, state_machine, logger)
 
     visualizer: Visualizer | None = None
-    if config.performance.enable_visualization:
+    if config.performance.enable_visualization or config.output.save_video:
         visualizer = Visualizer(config.display, state_machine)
 
     # ── Main Processing Loop ──
@@ -104,6 +106,22 @@ def main() -> None:
 
     camera = CameraStream(config.camera)
     camera.open()
+
+    video_writer = None
+    if config.output.save_video:
+        out_dir = Path(config.output.output_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / config.output.filename
+        
+        fps = camera.fps if camera.fps > 0 else 30.0
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v') # type: ignore
+        video_writer = cv2.VideoWriter(
+            str(out_path), 
+            fourcc, 
+            fps, 
+            (config.camera.frame_width, config.camera.frame_height)
+        )
+        print(f"  → Saving video output to {out_path} at {fps} FPS")
 
     try:
         while True:
@@ -120,22 +138,24 @@ def main() -> None:
             # ── Run Detection Pipeline ──
             output = detector.process_frame(frame)
 
-            # ── Visualize ──
+            # ── Visualize & Save ──
+            frame_to_write = frame
+            
             if visualizer is not None and output.tracking is not None:
-                annotated = visualizer.annotate_frame(
+                frame_to_write = visualizer.annotate_frame(
                     frame,
                     output.tracking,
                     output.person_statuses,
                     output.pest_detections or None,
                 )
-                if not visualizer.show(annotated):
+            
+            if config.performance.enable_visualization and visualizer is not None:
+                if not visualizer.show(frame_to_write):
                     print("\n[Run] User quit (pressed 'q').")
                     break
-            elif visualizer is not None:
-                # No detections this frame — show raw frame with FPS
-                if not visualizer.show(frame):
-                    print("\n[Run] User quit (pressed 'q').")
-                    break
+
+            if video_writer is not None:
+                video_writer.write(frame_to_write)
 
             # Progress indicator for file mode
             if config.camera.mode == "file" and camera.total_frames > 0:
@@ -151,6 +171,8 @@ def main() -> None:
 
     finally:
         camera.release()
+        if video_writer is not None:
+            video_writer.release()
         if visualizer:
             visualizer.cleanup()
         print("\n[Done] Kitchen-Cam stopped. Check logs/ for event records.")
