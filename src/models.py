@@ -85,8 +85,10 @@ class ModelManager:
         if tracker_config:
             kwargs["tracker"] = tracker_config
             kwargs["persist"] = persist
+            results = self._hygiene_model.track(frame, **kwargs)
+        else:
+            results = self._hygiene_model.predict(frame, **kwargs)
 
-        results = self._hygiene_model.predict(frame, **kwargs)
         return results[0] if results else None
 
     def predict_pest(self, frame: np.ndarray) -> Any:
@@ -126,13 +128,9 @@ class ModelManager:
 
         # Prefer OpenVINO export if it exists
         if openvino_path.exists():
-            # Look for the .xml file inside the OpenVINO directory
-            xml_files = list(openvino_path.glob("*.xml"))
-            if xml_files:
-                model_file = str(xml_files[0])
-                print(f"  → Loading OpenVINO model: {model_file}")
-                model = YOLO(model_file, task="detect")
-                return model
+            print(f"  → Loading OpenVINO model: {openvino_path}")
+            model = YOLO(str(openvino_path), task="detect")
+            return model
 
         # Fall back to PyTorch weights
         if weights_path.exists():
