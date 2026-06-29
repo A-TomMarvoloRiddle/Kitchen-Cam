@@ -1,0 +1,95 @@
+# ============================================================
+# Kitchen-Cam Configuration
+# Optimized for: Intel i7-1165G7 / Iris Xe iGPU / 16GB DDR4
+# ============================================================
+
+# --- Camera / Video Input ---
+camera:
+  source: "input/sample.mp4"      # Path to video file, or RTSP URL (rtsp://...)
+  mode: "file"                     # "file" | "rtsp"
+  frame_width: 640                 # Resize width for processing (lower = faster)
+  frame_height: 480                # Resize height for processing
+  rtsp_queue_size: 1               # Keep only the latest frame for live streams
+
+# --- Hygiene Model (Primary) ---
+hygiene_model:
+  weights: "models/hygiene_yolov8s.pt"          # PyTorch weights path
+  openvino_dir: "models/hygiene_yolov8s_openvino_model"  # Exported OpenVINO model dir
+  imgsz: 640                       # Inference image size
+  conf_threshold: 0.35             # Confidence threshold
+  iou_threshold: 0.45              # NMS IoU threshold
+  device: "cpu"                    # "cpu" for OpenVINO on Intel iGPU/CPU
+  half: false                      # FP16 — disable for CPU/iGPU OpenVINO
+  classes:                         # Class name mapping (index → label)
+    0: "person"
+    1: "glove"
+    2: "no_glove"
+    3: "hairnet"
+    4: "no_hairnet"
+    5: "chef_hat"
+
+# --- Pest Model (Secondary) ---
+pest_model:
+  weights: "models/pest_yolov8n.pt"
+  openvino_dir: "models/pest_yolov8n_openvino_model"
+  imgsz: 640
+  conf_threshold: 0.30
+  iou_threshold: 0.45
+  device: "cpu"
+  half: false
+  classes:
+    0: "insect"
+    1: "rodent"
+    2: "cockroach"
+    3: "fly"
+    4: "ant"
+
+# --- SAHI (Sliced Inference for Pest Detection) ---
+sahi:
+  enabled: true
+  slice_width: 320                 # Slice dimensions (smaller = catches tinier pests)
+  slice_height: 320
+  overlap_ratio: 0.2               # Overlap between slices
+
+# --- Tracker (BoT-SORT) ---
+tracker:
+  config: "botsort.yaml"           # ultralytics built-in tracker config
+  persist: true                    # Keep track IDs across frames
+
+# --- State Machine ---
+state_machine:
+  violation_threshold_seconds: 5.0   # Seconds of continuous violation before logging
+  stale_track_timeout_seconds: 30.0  # Remove tracks not seen for this long
+  compliance_attributes:             # Which attributes to monitor
+    - "glove"
+    - "hairnet"
+
+# --- Logging ---
+logging:
+  output_dir: "logs"               # JSON log output directory
+  rotate_daily: true               # Create a new file each day
+  log_pest_detections: true        # Also log pest sighting events
+  include_bbox: true               # Include bounding box coords in log
+  include_confidence: true         # Include confidence scores
+
+# --- Performance Tuning (Intel i7-1165G7 / 16GB shared RAM) ---
+performance:
+  process_every_n_frames: 2        # Skip frames (1 = process all, 2 = every other)
+  pest_check_every_n_frames: 10    # Run pest detection less frequently
+  max_batch_size: 1                # Single-frame batch for memory efficiency
+  num_threads: 4                   # OpenVINO inference threads (4 physical cores)
+  enable_visualization: true       # Render annotated frames to display
+  visualization_scale: 1.0         # Scale factor for display window
+
+# --- Display ---
+display:
+  window_name: "Kitchen-Cam Monitor"
+  show_fps: true
+  show_track_ids: true
+  bbox_thickness: 2
+  font_scale: 0.5
+  colors:
+    compliant: [0, 200, 0]         # Green (BGR)
+    violation: [0, 0, 255]         # Red (BGR)
+    pest: [0, 165, 255]            # Orange (BGR)
+    text: [255, 255, 255]          # White (BGR)
