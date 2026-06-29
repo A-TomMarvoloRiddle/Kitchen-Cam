@@ -106,6 +106,11 @@ class DisplayConfig(BaseModel):
     colors: DisplayColors = Field(default_factory=DisplayColors)
 
 
+class OutputConfig(BaseModel):
+    save_video: bool = False
+    output_dir: str = "output"
+    filename: str = "output.mp4"
+
 # ── Root Config ──
 
 class AppConfig(BaseModel):
@@ -128,6 +133,7 @@ class AppConfig(BaseModel):
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     performance: PerformanceConfig = Field(default_factory=PerformanceConfig)
     display: DisplayConfig = Field(default_factory=DisplayConfig)
+    output: OutputConfig = Field(default_factory=OutputConfig)
 
 
 def load_config(config_path: Optional[Path] = None) -> AppConfig:
