@@ -58,7 +58,7 @@ tracker:
 
 # --- State Machine ---
 state_machine:
-  violation_threshold_seconds: 5.0   # Seconds of continuous violation before logging
+  violation_threshold_seconds: 2.0   # Seconds of continuous violation before logging (decreased for faster detection)
   stale_track_timeout_seconds: 30.0  # Remove tracks not seen for this long
   compliance_attributes:             # Which attributes to monitor
     - "glove"
@@ -74,6 +74,7 @@ logging:
 
 # --- Performance Tuning (Intel i7-1165G7 / 16GB shared RAM) ---
 performance:
+  enable_pest_detection: false     # Set to false to disable pest detection
   process_every_n_frames: 2        # Skip frames (1 = process all, 2 = every other)
   pest_check_every_n_frames: 10    # Run pest detection less frequently
   max_batch_size: 1                # Single-frame batch for memory efficiency
