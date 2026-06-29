@@ -1,0 +1,15 @@
+# Kitchen-Cam: Core Dependencies
+# Optimized for Intel i7-1165G7 / Iris Xe iGPU / 16GB DDR4
+
+# -- Computer Vision & ML --
+ultralytics>=8.2.0             # YOLOv8 + BoT-SORT tracker
+opencv-python>=4.9.0           # Video capture and frame rendering
+openvino>=2024.0               # Intel-optimized inference (replaces TensorRT)
+sahi>=0.11.18                  # Sliced inference for small object detection
+
+# -- Configuration & Validation --
+pyyaml>=6.0                    # YAML config parsing
+pydantic>=2.0                  # Config schema validation
+
+# -- Utilities --
+numpy>=1.24.0                  # Array operations
