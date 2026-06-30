@@ -5,3 +5,4 @@ track_low_thresh: 0.1  # threshold for the second association
 new_track_thresh: 0.6  # threshold for init new track if the detection does not match any tracks
 track_buffer: 120  # buffer to calculate the time when to remove tracks
 match_thresh: 0.92  # threshold for matching tracks
+fuse_score: True # (bool) Fuse detection score with motion/IoU for matching; stabilizes weak detections
