@@ -60,6 +60,8 @@ class TrackerConfig(BaseModel):
 
 class StateMachineConfig(BaseModel):
     violation_threshold_seconds: float = 5.0
+    violation_cooldown_seconds: float = 30.0
+    temporal_smoothing_frames: int = 15
     stale_track_timeout_seconds: float = 30.0
     compliance_attributes: List[str] = Field(
         default_factory=lambda: ["glove", "hairnet"]
@@ -116,10 +118,17 @@ class OutputConfig(BaseModel):
 
 class AppConfig(BaseModel):
     camera: CameraConfig = Field(default_factory=CameraConfig)
+    person_model: ModelConfig = Field(
+        default_factory=lambda: ModelConfig(
+            weights="models/yolov8n.pt",
+            openvino_dir="models/yolov8n_openvino_model",
+        )
+    )
     hygiene_model: ModelConfig = Field(
         default_factory=lambda: ModelConfig(
             weights="models/hygiene_yolov8s.pt",
             openvino_dir="models/hygiene_yolov8s_openvino_model",
+            imgsz=640, # Reverted to 640 for OpenVINO static shape compatibility
         )
     )
     pest_model: ModelConfig = Field(
