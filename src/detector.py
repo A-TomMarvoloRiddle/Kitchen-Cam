@@ -18,7 +18,7 @@ from src.state_machine import StateMachine, ViolationEvent
 from src.tracker import (
     TrackedObject,
     TrackingResult,
-    associate_gear_to_person,
+    offset_tracking_results,
     parse_tracking_results,
 )
 
@@ -64,20 +64,63 @@ class Detector:
         self._frame_index += 1
         output = DetectionOutput()
 
-        # ── Step 1: Hygiene Detection + Tracking ──
+        # ── Step 1: Person Detection + Tracking ──
         perf = self._config.performance
         if self._frame_index % perf.process_every_n_frames == 0:
-            hygiene_results = self._models.predict_hygiene(
+            person_results = self._models.predict_person(
                 frame,
                 tracker_config=self._config.tracker.config,
                 persist=self._config.tracker.persist,
             )
 
-            if hygiene_results is not None:
-                # ── Step 2: Parse & Associate ──
+            if person_results is not None:
+                # ── Step 2: Crop & PPE Classification ──
                 class_map = self._config.hygiene_model.classes
-                tracking = parse_tracking_results(hygiene_results, class_map)
-                person_statuses = associate_gear_to_person(tracking)
+                tracking = parse_tracking_results(person_results, self._config.person_model.classes)
+                person_statuses: Dict[int, Dict[str, bool]] = {}
+
+                for person in tracking.persons:
+                    pid = person.track_id
+                    person_statuses[pid] = {"glove": False, "hairnet": False}
+
+                    x1, y1, x2, y2 = person.bbox
+                    
+                    h, w = frame.shape[:2]
+                    cx1, cy1 = max(0, int(x1)), max(0, int(y1))
+                    cx2, cy2 = min(w, int(x2)), min(h, int(y2))
+
+                    if cx2 <= cx1 or cy2 <= cy1:
+                        continue
+
+                    # Crop the person
+                    crop = frame[cy1:cy2, cx1:cx2]
+
+                    # Predict PPE on the crop
+                    hygiene_results = self._models.predict_hygiene(crop)
+                    
+                    if hygiene_results is not None:
+                        crop_tracking = parse_tracking_results(hygiene_results, class_map)
+                        # Shift bounding boxes back to original frame coordinates
+                        crop_tracking = offset_tracking_results(crop_tracking, cx1, cy1)
+                        
+                        # Determine compliance directly from crop
+                        if len(crop_tracking.gloves) > 0:
+                            person_statuses[pid]["glove"] = True
+                        elif len(crop_tracking.no_gloves) > 0:
+                            person_statuses[pid]["glove"] = False 
+                        
+                        if len(crop_tracking.hairnets) > 0 or len(crop_tracking.chef_hats) > 0:
+                            person_statuses[pid]["hairnet"] = True
+                        elif len(crop_tracking.no_hairnets) > 0:
+                            person_statuses[pid]["hairnet"] = False
+                            
+                        # Merge PPE detections into main tracking result
+                        tracking.all_objects.extend(crop_tracking.all_objects)
+                        tracking.gloves.extend(crop_tracking.gloves)
+                        tracking.no_gloves.extend(crop_tracking.no_gloves)
+                        tracking.hairnets.extend(crop_tracking.hairnets)
+                        tracking.no_hairnets.extend(crop_tracking.no_hairnets)
+                        tracking.chef_hats.extend(crop_tracking.chef_hats)
 
                 # ── Step 3: Update State Machine ──
                 now = time.time()
@@ -85,7 +128,6 @@ class Detector:
 
                 # ── Step 4: Log Violations ──
                 for v in violations:
-                    # Find the person's bbox and confidence for logging
                     person_bbox = None
                     person_conf = None
                     for p in tracking.persons:
