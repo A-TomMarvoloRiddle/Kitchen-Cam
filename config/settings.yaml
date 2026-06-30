@@ -11,12 +11,24 @@ camera:
   frame_height: 480                # Resize height for processing
   rtsp_queue_size: 1               # Keep only the latest frame for live streams
 
-# --- Hygiene Model (Primary) ---
+# --- Person Model (Stage 1) ---
+person_model:
+  weights: "models/yolov8n.pt"
+  openvino_dir: "models/yolov8n_openvino_model"
+  imgsz: 640
+  conf_threshold: 0.35
+  iou_threshold: 0.45
+  device: "cpu"
+  half: false
+  classes:
+    0: "person"
+
+# --- Hygiene Model (Stage 2 - PPE Classifier) ---
 hygiene_model:
   weights: "models/hygiene_yolov8s.pt"          # PyTorch weights path
   openvino_dir: "models/hygiene_yolov8s_openvino_model"  # Exported OpenVINO model dir
-  imgsz: 640                       # Inference image size
-  conf_threshold: 0.35             # Confidence threshold
+  imgsz: 640                       # Inference image size (Must be 640 for OpenVINO static shape)
+  conf_threshold: 0.50             # Confidence threshold
   iou_threshold: 0.45              # NMS IoU threshold
   device: "cpu"                    # "cpu" for OpenVINO on Intel iGPU/CPU
   half: false                      # FP16 — disable for CPU/iGPU OpenVINO
@@ -51,14 +63,16 @@ sahi:
   slice_height: 320
   overlap_ratio: 0.2               # Overlap between slices
 
-# --- Tracker (BoT-SORT) ---
+# --- Tracker (ByteTrack Custom) ---
 tracker:
-  config: "botsort.yaml"           # ultralytics built-in tracker config
+  config: "config/custom_tracker.yaml"  # Custom tracker config for better persistence
   persist: true                    # Keep track IDs across frames
 
 # --- State Machine ---
 state_machine:
-  violation_threshold_seconds: 2.0   # Seconds of continuous violation before logging (decreased for faster detection)
+  violation_threshold_seconds: 3.0   # Seconds of continuous violation before logging
+  violation_cooldown_seconds: 30.0   # Seconds to wait before logging the same violation again
+  temporal_smoothing_frames: 15      # Number of frames to smooth PPE predictions
   stale_track_timeout_seconds: 30.0  # Remove tracks not seen for this long
   compliance_attributes:             # Which attributes to monitor
     - "glove"
