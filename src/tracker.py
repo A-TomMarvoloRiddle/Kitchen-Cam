@@ -105,85 +105,28 @@ def parse_tracking_results(
     return tracking
 
 
-def associate_gear_to_person(
+def offset_tracking_results(
     tracking: TrackingResult,
-    iou_threshold: float = 0.05,
-) -> Dict[int, Dict[str, bool]]:
-    """Associate detected gear (gloves, hairnets) to the nearest person.
+    offset_x: float,
+    offset_y: float,
+) -> TrackingResult:
+    """Offset all bounding boxes in a tracking result by a given amount.
 
-    Uses spatial overlap (IoU or containment) to link gear detections
-    to person bounding boxes.
-
-    Args:
-        tracking: Parsed tracking result for one frame.
-        iou_threshold: Minimum IoU to consider a gear detection linked to a person.
-
-    Returns:
-        Dict mapping person track_id → {"glove": bool, "hairnet": bool}
-    """
-    person_status: Dict[int, Dict[str, bool]] = {}
-
-    for person in tracking.persons:
-        pid = person.track_id
-        person_status[pid] = {
-            "glove": False,
-            "hairnet": False,
-        }
-
-        # Check gloves — if a "glove" detection overlaps with this person
-        for glove in tracking.gloves:
-            if _bbox_overlap(person.bbox, glove.bbox) > iou_threshold:
-                person_status[pid]["glove"] = True
-                break
-
-        # Check no_glove — explicit negative detection
-        for no_glove in tracking.no_gloves:
-            if _bbox_overlap(person.bbox, no_glove.bbox) > iou_threshold:
-                person_status[pid]["glove"] = False
-                break  # Explicit negative overrides
-
-        # Check hairnet / chef_hat
-        for hairnet in tracking.hairnets + tracking.chef_hats:
-            if _bbox_overlap(person.bbox, hairnet.bbox) > iou_threshold:
-                person_status[pid]["hairnet"] = True
-                break
-
-        # Check no_hairnet — explicit negative
-        for no_hairnet in tracking.no_hairnets:
-            if _bbox_overlap(person.bbox, no_hairnet.bbox) > iou_threshold:
-                person_status[pid]["hairnet"] = False
-                break
-
-    return person_status
-
-
-def _bbox_overlap(box_a: tuple, box_b: tuple) -> float:
-    """Compute the ratio of box_b's area that overlaps with box_a.
-
-    This is NOT strict IoU — it measures how much of the smaller box (gear)
-    is contained within the larger box (person). This works better for
-    associating small gear detections with large person boxes.
+    This is used when detections are made on a cropped image and need
+    to be mapped back to the original frame's coordinate space.
 
     Args:
-        box_a: (x1, y1, x2, y2) — typically the person box.
-        box_b: (x1, y1, x2, y2) — typically the gear box.
+        tracking: The tracking result to offset (modified in-place).
+        offset_x: X coordinate offset.
+        offset_y: Y coordinate offset.
 
     Returns:
-        Overlap ratio [0, 1].
+        The modified tracking result.
     """
-    ax1, ay1, ax2, ay2 = box_a
-    bx1, by1, bx2, by2 = box_b
-
-    # Intersection
-    ix1 = max(ax1, bx1)
-    iy1 = max(ay1, by1)
-    ix2 = min(ax2, bx2)
-    iy2 = min(ay2, by2)
-
-    if ix1 >= ix2 or iy1 >= iy2:
-        return 0.0
-
-    intersection = (ix2 - ix1) * (iy2 - iy1)
-    area_b = max((bx2 - bx1) * (by2 - by1), 1e-6)
-
-    return intersection / area_b
+    for obj in tracking.all_objects:
+        x1, y1, x2, y2 = obj.bbox
+        obj.bbox = (x1 + offset_x, y1 + offset_y, x2 + offset_x, y2 + offset_y)
+        cx, cy = obj.center
+        obj.center = (cx + offset_x, cy + offset_y)
+    
+    return tracking
