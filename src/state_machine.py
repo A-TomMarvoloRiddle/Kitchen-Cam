@@ -32,6 +32,12 @@ class ChefState:
     # Confirmed (logged) violations — to avoid duplicate logging
     confirmed_violations: Dict[str, bool] = field(default_factory=dict)
 
+    # History for temporal smoothing (attribute -> list of last N bools)
+    history: Dict[str, List[bool]] = field(default_factory=dict)
+    
+    # Track when the last log occurred for cooldown logic
+    last_logged_time: Dict[str, float] = field(default_factory=dict)
+
 
 @dataclass
 class ViolationEvent:
@@ -81,7 +87,25 @@ class StateMachine:
 
             # Check each compliance attribute
             for attr in self._config.compliance_attributes:
-                is_compliant = status.get(attr, True)
+                raw_is_compliant = status.get(attr, True)
+                
+                # Update history for temporal smoothing
+                if attr not in chef.history:
+                    chef.history[attr] = []
+                chef.history[attr].append(raw_is_compliant)
+                
+                # Limit history to N frames
+                max_frames = self._config.temporal_smoothing_frames
+                if len(chef.history[attr]) > max_frames:
+                    chef.history[attr].pop(0)
+                    
+                # Temporal Smoothing (Majority vote)
+                if len(chef.history[attr]) > 0:
+                    compliant_votes = sum(chef.history[attr])
+                    is_compliant = compliant_votes >= (len(chef.history[attr]) / 2)
+                else:
+                    is_compliant = True
+
                 violation_key = f"missing_{attr}"
 
                 if is_compliant:
@@ -105,16 +129,20 @@ class StateMachine:
                             duration >= self._config.violation_threshold_seconds
                             and not chef.confirmed_violations.get(violation_key, False)
                         ):
-                            # Confirm the violation
-                            chef.confirmed_violations[violation_key] = True
-                            new_violations.append(
-                                ViolationEvent(
-                                    track_id=track_id,
-                                    violation_type=violation_key,
-                                    duration_seconds=round(duration, 2),
-                                    timestamp=now,
+                            # Cooldown check
+                            last_log = chef.last_logged_time.get(violation_key, 0)
+                            if (now - last_log) >= self._config.violation_cooldown_seconds:
+                                # Confirm the violation
+                                chef.confirmed_violations[violation_key] = True
+                                chef.last_logged_time[violation_key] = now
+                                new_violations.append(
+                                    ViolationEvent(
+                                        track_id=track_id,
+                                        violation_type=violation_key,
+                                        duration_seconds=round(duration, 2),
+                                        timestamp=now,
+                                    )
                                 )
-                            )
 
         # Prune stale tracks
         self._prune_stale(now)
@@ -170,6 +198,8 @@ class StateMachine:
                 last_seen=time.time(),
                 violation_start={},
                 confirmed_violations={},
+                history={},
+                last_logged_time={},
             )
         return self._chefs[track_id]
 
