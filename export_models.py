@@ -96,11 +96,14 @@ def main() -> None:
     print("=" * 60)
 
     if not args.pest_only:
-        print("\n── Hygiene Model ──")
+        print("\n-- Person Model (Stage 1) --")
+        export_model(config.person_model, "Person")
+
+        print("\n-- Hygiene Model (Stage 2) --")
         export_model(config.hygiene_model, "Hygiene")
 
     if not args.hygiene_only:
-        print("\n── Pest Model ──")
+        print("\n-- Pest Model --")
         export_model(config.pest_model, "Pest")
 
     print("\n" + "=" * 60)
