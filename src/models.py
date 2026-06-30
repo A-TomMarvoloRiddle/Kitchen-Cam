@@ -20,6 +20,7 @@ class ModelManager:
 
     def __init__(self, config: AppConfig) -> None:
         self._config = config
+        self._person_model: Any = None
         self._hygiene_model: Any = None
         self._pest_model: Any = None
 
@@ -30,7 +31,10 @@ class ModelManager:
     # ── Public API ──
 
     def load_all(self) -> None:
-        """Load both hygiene and pest models (OpenVINO preferred, PyTorch fallback)."""
+        """Load person, hygiene and pest models (OpenVINO preferred, PyTorch fallback)."""
+        print("[ModelManager] Loading person model...")
+        self._person_model = self._load_model(self._config.person_model)
+
         print("[ModelManager] Loading hygiene model...")
         self._hygiene_model = self._load_model(self._config.hygiene_model)
 
@@ -40,9 +44,17 @@ class ModelManager:
         print("[ModelManager] All models loaded successfully.")
 
     def export_all_to_openvino(self) -> None:
-        """Export both PyTorch models to OpenVINO IR format for Intel acceleration."""
+        """Export PyTorch models to OpenVINO IR format for Intel acceleration."""
+        self._export_to_openvino(self._config.person_model, tag="person")
         self._export_to_openvino(self._config.hygiene_model, tag="hygiene")
         self._export_to_openvino(self._config.pest_model, tag="pest")
+
+    @property
+    def person_model(self) -> Any:
+        """Access the loaded person detection model."""
+        if self._person_model is None:
+            raise RuntimeError("Person model not loaded. Call load_all() first.")
+        return self._person_model
 
     @property
     def hygiene_model(self) -> Any:
@@ -58,18 +70,44 @@ class ModelManager:
             raise RuntimeError("Pest model not loaded. Call load_all() first.")
         return self._pest_model
 
-    def predict_hygiene(
+    def predict_person(
         self,
         frame: np.ndarray,
         tracker_config: Optional[str] = None,
         persist: bool = True,
     ) -> Any:
-        """Run hygiene model inference with optional tracking.
+        """Run person model inference with optional tracking.
 
         Args:
             frame: BGR image as numpy array.
             tracker_config: Path to tracker YAML config (e.g., 'botsort.yaml').
             persist: Whether to persist tracker state across frames.
+
+        Returns:
+            ultralytics Results object.
+        """
+        cfg = self._config.person_model
+        kwargs: Dict[str, Any] = {
+            "imgsz": cfg.imgsz,
+            "conf": cfg.conf_threshold,
+            "iou": cfg.iou_threshold,
+            "verbose": False,
+        }
+
+        if tracker_config:
+            kwargs["tracker"] = tracker_config
+            kwargs["persist"] = persist
+            results = self._person_model.track(frame, **kwargs)
+        else:
+            results = self._person_model.predict(frame, **kwargs)
+
+        return results[0] if results else None
+
+    def predict_hygiene(self, frame: np.ndarray) -> Any:
+        """Run hygiene model inference on a cropped frame (no tracking needed).
+
+        Args:
+            frame: BGR image as numpy array (crop of a person).
 
         Returns:
             ultralytics Results object.
@@ -81,14 +119,7 @@ class ModelManager:
             "iou": cfg.iou_threshold,
             "verbose": False,
         }
-
-        if tracker_config:
-            kwargs["tracker"] = tracker_config
-            kwargs["persist"] = persist
-            results = self._hygiene_model.track(frame, **kwargs)
-        else:
-            results = self._hygiene_model.predict(frame, **kwargs)
-
+        results = self._hygiene_model.predict(frame, **kwargs)
         return results[0] if results else None
 
     def predict_pest(self, frame: np.ndarray) -> Any:
