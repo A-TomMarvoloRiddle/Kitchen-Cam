@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual Analytics - Kitchen-Cam</title>
+    <!-- Modern Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="navbar">
+        <div class="logo">
+            <div class="icon">👁️</div>
+            <div>
+                <h1>Visual Analytics</h1>
+                <span>Kitchen-Cam Monitor · Powered by OpenVINO</span>
+            </div>
+        </div>
+        <div class="live-badge">Live AI</div>
+    </header>
+
+    <nav class="tabs">
+        <a href="#" class="tab" id="tab-monitoring">CX Monitoring</a>
+        <a href="#" class="tab active" id="tab-dashboard">Dashboard <span>1</span></a>
+    </nav>
+
+    <main class="dashboard">
+        <!-- GLOBAL DASHBOARD VIEW -->
+        <div id="view-dashboard">
+            <!-- Top Section: Score & Stats -->
+            <section class="top-row">
+                <!-- Left Card: Compliance Score -->
+                <div class="card score-card">
+                    <div class="score-value" id="compliance-score">--</div>
+                    <div class="score-label">Compliance Score</div>
+                    <div class="status-badge" id="compliance-status">Loading</div>
+                    <p class="score-detail">Visual scan of Kitchen environment shows <span id="rules-passed-text">0</span> of 3 compliance rules met. <span id="rules-failed-text">0</span> item(s) require corrective action before next audit.</p>
+                </div>
+
+                <!-- Right Card: Quick Stats & Recommendations -->
+                <div class="card stats-card">
+                    <h3>QUICK STATS</h3>
+                    <ul class="stats-list">
+                        <li>
+                            <span>Rules Passed</span>
+                            <strong class="stat-success" id="rules-passed">0</strong>
+                        </li>
+                        <li>
+                            <span>Rules Failed</span>
+                            <strong class="stat-fail" id="rules-failed">0</strong>
+                        </li>
+                        <li>
+                            <span>Total Violations Recorded</span>
+                            <strong id="total-violations">0 events</strong>
+                        </li>
+                        <li>
+                            <span>Context</span>
+                            <strong>Commercial Kitchen</strong>
+                        </li>
+                    </ul>
+
+                    <h3 class="mt-20">RECOMMENDATIONS</h3>
+                    <ul class="recommendations">
+                        <li>Schedule refresher hygiene training for kitchen staff.</li>
+                        <li>Verify SAHI pest control monitors are active in blind spots.</li>
+                        <li>Ensure PPE stock is readily available at entry points.</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Charts Section -->
+            <section class="middle-row mt-20">
+                <div class="card chart-card">
+                    <h3>Most Frequent Violations</h3>
+                    <div class="chart-container">
+                        <canvas id="violationsChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Bottom Section: Rule Breakdown -->
+            <section class="bottom-row mt-20">
+                <div class="card breakdown-card">
+                    <h3>RULE-BY-RULE BREAKDOWN</h3>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>RULE</th>
+                                <th>STATUS</th>
+                                <th>DETAIL</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rule-table-body">
+                            <!-- Populated by JS -->
+                            <tr>
+                                <td colspan="3" style="text-align: center; padding: 2rem;">Loading data...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <!-- CX MONITORING VIEW -->
+        <div id="view-monitoring" style="display: none;">
+            <div class="controls-row mb-20">
+                <label for="run-selector" class="selector-label">Select Session Run:</label>
+                <select id="run-selector" class="run-dropdown">
+                    <option value="">-- Loading Runs --</option>
+                </select>
+            </div>
+            
+            <section class="bottom-row">
+                <div class="card breakdown-card">
+                    <h3>CHEF-LEVEL ANALYTICS</h3>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>TRACK ID</th>
+                                <th>VIOLATIONS RECORDED</th>
+                                <th>TOTAL DURATION (s)</th>
+                                <th>AVG CONFIDENCE</th>
+                                <th>LABELS FAILED</th>
+                            </tr>
+                        </thead>
+                        <tbody id="chef-table-body">
+                            <tr>
+                                <td colspan="5" style="text-align: center; padding: 2rem;">Select a run to view chef details...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            
+            <section class="bottom-row mt-20">
+                <div class="card breakdown-card">
+                    <h3>PEST DETECTIONS</h3>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>TIMESTAMP</th>
+                                <th>CONFIDENCE</th>
+                                <th>DURATION (s)</th>
+                                <th>STATUS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pest-table-body">
+                            <tr>
+                                <td colspan="4" style="text-align: center; padding: 2rem;">No pest detections found for this run.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script src="app.js?v=2"></script>
+</body>
+</html>
