@@ -3,7 +3,7 @@
 
 # -- Computer Vision & ML --
 ultralytics>=8.2.0             # YOLOv8 + BoT-SORT tracker
-opencv-python>=4.9.0           # Video capture and frame rendering
+opencv-python-headless>=4.9.0  # Video capture and frame rendering (headless for Docker)
 openvino>=2024.0               # Intel-optimized inference (replaces TensorRT)
 sahi>=0.11.18                  # Sliced inference for small object detection
 
