@@ -20,6 +20,7 @@ RUN mkdir -p input output logs models
 # Copy application source code
 COPY src/ src/
 COPY dashboard/ dashboard/
+COPY main.py .
 COPY dashboard_server.py .
 COPY config/ config/
 
