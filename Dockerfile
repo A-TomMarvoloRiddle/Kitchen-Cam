@@ -21,7 +21,7 @@ RUN mkdir -p input output logs models
 COPY src/ src/
 COPY dashboard/ dashboard/
 COPY dashboard_server.py .
-COPY config.yaml .
+COPY config/ config/
 
 # Copy models (if they are bundled, though typically they are downloaded or mounted)
 # COPY models/ models/
