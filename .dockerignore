@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.env
+.git/
+.gitignore
+.dockerignore
+Dockerfile
+docker-compose.yml
+nginx.conf
+
+# Ignore local datasets, outputs, logs, and inputs
+input/
+output/
+logs/
+.ipynb_checkpoints/

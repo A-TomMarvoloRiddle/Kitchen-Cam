@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  backend:
+    build: .
+    container_name: kitchen-cam-backend
+    restart: unless-stopped
+    volumes:
+      # Mount input/output/logs so they are persistent and accessible
+      - ./input:/app/input
+      - ./output:/app/output
+      - ./logs:/app/logs
+      # Mount models folder if models are pre-downloaded
+      - ./models:/app/models
+    # We do NOT expose port 8000 to the host directly for security,
+    # it is only accessible to the nginx container internally.
+    expose:
+      - "8000"
+
+  nginx:
+    image: nginx:alpine
+    container_name: kitchen-cam-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./dashboard:/usr/share/nginx/html:ro
+    depends_on:
+      - backend
