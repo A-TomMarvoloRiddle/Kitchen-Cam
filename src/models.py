@@ -24,9 +24,11 @@ class ModelManager:
         self._hygiene_model: Any = None
         self._pest_model: Any = None
 
-        # Set OpenVINO thread count for Intel i7-1165G7 (4 physical cores)
-        os.environ["OMP_NUM_THREADS"] = str(config.performance.num_threads)
-        os.environ["OPENVINO_NUM_THREADS"] = str(config.performance.num_threads)
+        # Set OpenVINO thread count to maximize AWS C-series instance CPU utilization
+        cpu_cores = os.cpu_count() or 4
+        num_threads = config.performance.num_threads if config.performance.num_threads > 0 else cpu_cores
+        os.environ["OMP_NUM_THREADS"] = str(num_threads)
+        os.environ["OPENVINO_NUM_THREADS"] = str(num_threads)
 
     # ── Public API ──
 
