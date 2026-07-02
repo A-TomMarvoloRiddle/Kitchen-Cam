@@ -1,17 +1,102 @@
 import json
 import os
-from http.server import SimpleHTTPRequestHandler, HTTPServer
+import threading
+import time
+import queue
+import cv2
+try:
+    from ultralytics import YOLO  # Pre-import to avoid thread lock
+except ImportError:
+    pass
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
+import main as pipeline_main
 
 # Define paths
 ROOT_DIR = Path(__file__).resolve().parent
 LOGS_DIR = ROOT_DIR / "logs"
 DASHBOARD_DIR = ROOT_DIR / "dashboard"
+INPUT_DIR = ROOT_DIR / "input"
+
+# Global state for streaming and status
+processing_status = "IDLE"
+current_run_id = ""
+frame_queue = queue.Queue(maxsize=10)
+
+def pipeline_thread_target(filepath, source_name):
+    global processing_status, current_run_id
+    processing_status = "RUNNING"
+    current_run_id = source_name
+    
+    def frame_callback(frame):
+        # Encode as JPEG
+        ret, buffer = cv2.imencode('.jpg', frame)
+        if ret:
+            # We don't want to block indefinitely if the stream isn't being consumed
+            try:
+                # empty queue to keep only latest frame to reduce latency
+                while not frame_queue.empty():
+                    frame_queue.get_nowait()
+                frame_queue.put_nowait(buffer.tobytes())
+            except queue.Full:
+                pass
+                
+    try:
+        pipeline_main.run_pipeline(source=str(filepath), config_path=None, frame_callback=frame_callback)
+    except Exception as e:
+        print(f"Pipeline error: {e}")
+    finally:
+        processing_status = "DONE"
+        # Push a None or dummy to unblock stream
+        try:
+            while not frame_queue.empty():
+                frame_queue.get_nowait()
+            frame_queue.put_nowait(None)
+        except queue.Full:
+            pass
 
 class DashboardHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(DASHBOARD_DIR), **kwargs)
+
+    def do_POST(self):
+        parsed_path = urlparse(self.path)
+        if parsed_path.path == "/api/upload":
+            qs = parse_qs(parsed_path.query)
+            original_filename = qs.get("filename", ["uploaded_video.mp4"])[0]
+            INPUT_DIR.mkdir(exist_ok=True)
+            
+            # Save to a unique filename to prevent overwriting existing files
+            timestamp = int(time.time())
+            filename = f"upload_{timestamp}_{original_filename}"
+            filepath = INPUT_DIR / filename
+            
+            length = int(self.headers.get("Content-Length", 0))
+            if length > 0:
+                with open(filepath, "wb") as f:
+                    bytes_read = 0
+                    while bytes_read < length:
+                        chunk = self.rfile.read(min(8192*4, length - bytes_read))
+                        if not chunk: break
+                        f.write(chunk)
+                        bytes_read += len(chunk)
+            
+            # Start pipeline thread
+            source_name = filename.rsplit('.', 1)[0]
+            processing_status = "RUNNING"
+            current_run_id = source_name
+            threading.Thread(target=pipeline_thread_target, args=(filepath, source_name), daemon=True).start()
+            
+            response_body = json.dumps({"status": "started"}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.send_header("Content-Length", str(len(response_body)))
+            self.end_headers()
+            self.wfile.write(response_body)
+        else:
+            self.send_response(404)
+            self.end_headers()
 
     def do_GET(self):
         parsed_path = urlparse(self.path)
@@ -22,11 +107,39 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             qs = parse_qs(parsed_path.query)
             run_id = qs.get("run", [None])[0]
             self.serve_api_logs(run_id)
+        elif parsed_path.path == "/api/status":
+            response_data = {"status": processing_status, "run_id": current_run_id}
+            response_body = json.dumps(response_data).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.send_header("Content-Length", str(len(response_body)))
+            self.end_headers()
+            self.wfile.write(response_body)
+        elif parsed_path.path == "/api/stream":
+            self.send_response(200)
+            self.send_header('Content-type', 'multipart/x-mixed-replace; boundary=frame')
+            self.end_headers()
+            
+            while processing_status == "RUNNING":
+                try:
+                    frame = frame_queue.get(timeout=1.0)
+                    if frame is None:
+                        break
+                    self.wfile.write(b'--frame\r\n')
+                    self.send_header('Content-Type', 'image/jpeg')
+                    self.send_header('Content-Length', str(len(frame)))
+                    self.end_headers()
+                    self.wfile.write(frame)
+                    self.wfile.write(b'\r\n')
+                except queue.Empty:
+                    pass
+                except Exception as e:
+                    print(f"Stream interrupted: {e}")
+                    break
         else:
             super().do_GET()
 
     def serve_api_runs(self):
-        """Return a list of available runs."""
         runs = set()
         if LOGS_DIR.exists():
             for log_file in LOGS_DIR.glob("*.json"):
@@ -47,7 +160,6 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.wfile.write(json.dumps(response_data).encode("utf-8"))
 
     def serve_api_logs(self, filter_run_id=None):
-        """Aggregate logs, optionally filtered by a specific run."""
         total_scans = 0
         total_violations = 0
         rule_breakdown = {
@@ -56,9 +168,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             "pest": {"status": "PASS", "detail": "Meets standard", "failed_count": 0}
         }
         
-        # New: Detailed Chef-level analytics
         chef_stats = {}
-        # New: Pest-level analytics
         pest_events = []
 
         if LOGS_DIR.exists():
@@ -70,7 +180,6 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                         if not data:
                             continue
                             
-                        # If filtering by run, check the first event's source
                         source = data[0].get("source", "")
                         if filter_run_id and source != filter_run_id:
                             continue
@@ -92,14 +201,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                                     rule_breakdown["pest"]["status"] = "FAIL"
                                     rule_breakdown["pest"]["failed_count"] += 1
                                     
-                                    # Collect pest analytics
                                     pest_events.append({
                                         "timestamp": event.get("timestamp"),
                                         "confidence": event.get("confidence", 0.0),
                                         "duration": event.get("duration_seconds", 0.0)
                                     })
 
-                                # Track Chef level stats
                                 track_id = event.get("track_id")
                                 if track_id is not None:
                                     tid = str(track_id)
@@ -126,13 +233,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             if data["status"] == "FAIL":
                 data["detail"] = f"Non-conformance detected ({data['failed_count']} times) — remediation required."
 
-        # Compute averages for chef stats
         for tid, stats in chef_stats.items():
             confs = stats["confidences"]
             stats["avg_confidence"] = round(sum(confs) / len(confs), 4) if confs else 0.0
-            stats["labels"] = list(set(stats["labels"])) # Unique labels
+            stats["labels"] = list(set(stats["labels"]))
             stats["duration_sum"] = round(stats["duration_sum"], 2)
-            del stats["confidences"] # Clean up output
+            del stats["confidences"]
 
         rules_passed = sum(1 for v in rule_breakdown.values() if v["status"] == "PASS")
         total_rules = len(rule_breakdown)
@@ -154,12 +260,11 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps(response_data).encode("utf-8"))
 
-
 if __name__ == "__main__":
     PORT = 8000
     DASHBOARD_DIR.mkdir(exist_ok=True)
     server_address = ("", PORT)
-    httpd = HTTPServer(server_address, DashboardHandler)
+    httpd = ThreadingHTTPServer(server_address, DashboardHandler)
     print(f"Starting dashboard server at http://localhost:{PORT}")
     print("Press Ctrl+C to stop.")
     try:
