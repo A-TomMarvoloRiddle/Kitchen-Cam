@@ -1,5 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
     initTabs();
+    initUploadLogic();
     fetchRuns();
     fetchLogs(); // Initial fetch for dashboard (all runs)
 });
@@ -8,25 +9,41 @@ let violationsChart = null;
 let currentRun = "";
 
 function initTabs() {
+    const tabUpload = document.getElementById("tab-upload");
     const tabMonitoring = document.getElementById("tab-monitoring");
     const tabDashboard = document.getElementById("tab-dashboard");
-    const viewDashboard = document.getElementById("view-dashboard");
+    const viewUpload = document.getElementById("view-upload");
     const viewMonitoring = document.getElementById("view-monitoring");
+    const viewDashboard = document.getElementById("view-dashboard");
+
+    function resetTabs() {
+        tabUpload.classList.remove("active");
+        tabMonitoring.classList.remove("active");
+        tabDashboard.classList.remove("active");
+        viewUpload.style.display = "none";
+        viewMonitoring.style.display = "none";
+        viewDashboard.style.display = "none";
+    }
+
+    tabUpload.addEventListener("click", (e) => {
+        e.preventDefault();
+        resetTabs();
+        tabUpload.classList.add("active");
+        viewUpload.style.display = "block";
+    });
 
     tabMonitoring.addEventListener("click", (e) => {
         e.preventDefault();
+        resetTabs();
         tabMonitoring.classList.add("active");
-        tabDashboard.classList.remove("active");
         viewMonitoring.style.display = "block";
-        viewDashboard.style.display = "none";
     });
 
     tabDashboard.addEventListener("click", (e) => {
         e.preventDefault();
+        resetTabs();
         tabDashboard.classList.add("active");
-        tabMonitoring.classList.remove("active");
         viewDashboard.style.display = "block";
-        viewMonitoring.style.display = "none";
     });
 
     // Run selector listener
@@ -34,6 +51,113 @@ function initTabs() {
         currentRun = e.target.value;
         fetchLogs(currentRun);
     });
+}
+
+function initUploadLogic() {
+    const fileInput = document.getElementById("video-file");
+    const btnSelect = document.getElementById("btn-select-file");
+    const btnUpload = document.getElementById("btn-upload");
+    const fileNameDisplay = document.getElementById("selected-file-name");
+    const progressContainer = document.getElementById("progress-container");
+    const progressFill = document.getElementById("upload-progress");
+    const progressText = document.getElementById("upload-status-text");
+    const streamContainer = document.getElementById("stream-container");
+    const liveStream = document.getElementById("live-stream");
+    const streamPlaceholder = document.getElementById("stream-placeholder");
+
+    let selectedFile = null;
+    let pollInterval = null;
+
+    btnSelect.addEventListener("click", () => fileInput.click());
+
+    fileInput.addEventListener("change", (e) => {
+        if (e.target.files.length > 0) {
+            selectedFile = e.target.files[0];
+            fileNameDisplay.innerText = selectedFile.name;
+            btnUpload.disabled = false;
+            
+            // Reset the stream box in case of a previous run
+            progressContainer.style.display = "none";
+            progressFill.style.width = "0%";
+            progressText.innerText = "Uploading: 0%";
+            liveStream.style.display = "none";
+            streamPlaceholder.style.display = "block";
+            streamPlaceholder.innerText = "Stream will appear here once processing starts.";
+        }
+    });
+
+    btnUpload.addEventListener("click", () => {
+        if (!selectedFile) return;
+        
+        btnUpload.disabled = true;
+        btnSelect.disabled = true;
+        progressContainer.style.display = "block";
+        progressFill.style.width = "50%";
+        progressText.innerText = "Uploading to server...";
+
+        // Simple POST fetch for binary file data
+        fetch(`/api/upload?filename=${encodeURIComponent(selectedFile.name)}`, {
+            method: 'POST',
+            body: selectedFile,
+            headers: {
+                'Content-Type': 'application/octet-stream'
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            progressFill.style.width = "100%";
+            progressText.innerText = "Processing video...";
+            
+            // Show MJPEG stream
+            streamPlaceholder.style.display = "none";
+            liveStream.style.display = "block";
+            // Append timestamp to bypass caching
+            liveStream.src = `/api/stream?t=${new Date().getTime()}`;
+            
+            // Start polling for status
+            pollInterval = setInterval(checkStatus, 2000);
+        })
+        .catch(err => {
+            console.error("Upload failed", err);
+            progressText.innerText = "Upload failed!";
+            btnUpload.disabled = false;
+            btnSelect.disabled = false;
+        });
+    });
+
+    function checkStatus() {
+        fetch('/api/status')
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === "DONE") {
+                    clearInterval(pollInterval);
+                    progressText.innerText = "Processing Complete!";
+                    liveStream.style.display = "none";
+                    streamPlaceholder.style.display = "block";
+                    streamPlaceholder.innerText = "Processing finished. Redirecting...";
+                    
+                    // Fetch runs again to populate the new run
+                    fetchRuns().then(() => {
+                        // Switch to monitoring tab
+                        document.getElementById("tab-monitoring").click();
+                        // Select the new run
+                        const selector = document.getElementById("run-selector");
+                        selector.value = data.run_id;
+                        currentRun = data.run_id;
+                        fetchLogs(currentRun);
+                        
+                        // Reset upload UI
+                        btnUpload.disabled = false;
+                        btnSelect.disabled = false;
+                        progressContainer.style.display = "none";
+                        fileNameDisplay.innerText = "No file selected";
+                        selectedFile = null;
+                        fileInput.value = "";
+                    });
+                }
+            })
+            .catch(console.error);
+    }
 }
 
 async function fetchRuns() {

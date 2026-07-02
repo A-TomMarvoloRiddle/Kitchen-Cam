@@ -397,3 +397,91 @@ body {
     margin-right: 0.5rem;
 }
 
+/* --- UPLOAD UI STYLES --- */
+.upload-area {
+    border: 2px dashed #d1d5db;
+    border-radius: 8px;
+    padding: 3rem;
+    text-align: center;
+    background-color: #f9fafb;
+    margin-top: 1rem;
+    transition: all 0.3s ease;
+}
+
+.upload-area:hover {
+    border-color: #3b82f6;
+    background-color: #eff6ff;
+}
+
+.file-name {
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    color: #6b7280;
+}
+
+.btn-primary {
+    background-color: #3b82f6;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #2563eb;
+}
+
+.btn-success {
+    background-color: #10b981;
+    color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+    background-color: #059669;
+}
+
+.btn:disabled {
+    background-color: #d1d5db;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.progress-container {
+    width: 100%;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 12px;
+    background-color: #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background-color: #3b82f6;
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    text-align: center;
+    font-size: 0.85rem;
+    color: #4b5563;
+    margin-top: 0.5rem;
+}
+
+.stream-container {
+    background-color: #111827;
+    border-radius: 8px;
+    min-height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6b7280;
+    padding: 1rem;
+}
+
+.upload-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}

@@ -25,6 +25,7 @@
     </header>
 
     <nav class="tabs">
+        <a href="#" class="tab" id="tab-upload">Upload Video</a>
         <a href="#" class="tab" id="tab-monitoring">CX Monitoring</a>
         <a href="#" class="tab active" id="tab-dashboard">Dashboard <span>1</span></a>
     </nav>
@@ -155,6 +156,41 @@
                             </tr>
                         </tbody>
                     </table>
+                </div>
+            </section>
+        </div>
+
+        <!-- UPLOAD VIEW -->
+        <div id="view-upload" style="display: none;">
+            <section class="upload-layout">
+                <div class="card upload-card">
+                    <h3>UPLOAD & PROCESS VIDEO</h3>
+                    <p class="upload-desc">Select a video file to run through the AI pipeline. You can stream the processing live.</p>
+                    
+                    <div class="upload-area" id="upload-area">
+                        <input type="file" id="video-file" accept="video/mp4,video/x-m4v,video/*" style="display: none;">
+                        <button class="btn btn-primary" id="btn-select-file">Choose Video File</button>
+                        <p class="file-name" id="selected-file-name">No file selected</p>
+                    </div>
+                    
+                    <div class="mt-20" style="text-align: center;">
+                        <button class="btn btn-success" id="btn-upload" disabled>Start Processing</button>
+                    </div>
+                    
+                    <div class="progress-container mt-20" id="progress-container" style="display: none;">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="upload-progress"></div>
+                        </div>
+                        <p class="progress-text" id="upload-status-text">Uploading: 0%</p>
+                    </div>
+                </div>
+
+                <div class="card stream-card">
+                    <h3>LIVE PROCESSING STREAM</h3>
+                    <div class="stream-container" id="stream-container">
+                        <p id="stream-placeholder">Stream will appear here once processing starts.</p>
+                        <img id="live-stream" src="" alt="Live Stream" style="display: none; width: 100%; height: auto; border-radius: 8px;">
+                    </div>
                 </div>
             </section>
         </div>
