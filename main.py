@@ -61,21 +61,22 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
-    """Main application loop."""
-    args = parse_args()
-
+def run_pipeline(
+    source: str | None = None,
+    config_path: str | None = None,
+    frame_callback=None
+) -> None:
+    """Main application loop, exposed for programmatic execution."""
     # ── Load Configuration ──
-    config_path = Path(args.config) if args.config else None
-    config: AppConfig = load_config(config_path)
+    config_file = Path(config_path) if config_path else None
+    config: AppConfig = load_config(config_file)
 
-    # Apply CLI overrides
-    if args.source:
-        config.camera.source = args.source
-    if args.mode:
-        config.camera.mode = args.mode
-    if args.no_display:
-        config.performance.enable_visualization = False
+    # Apply overrides
+    if source:
+        config.camera.source = source
+        # Disable cv2.imshow if we are streaming via callback
+        if frame_callback is not None:
+            config.performance.enable_visualization = False
 
     print("=" * 60)
     print("  Kitchen-Cam: AI-Powered Kitchen Hygiene Monitor")
@@ -83,8 +84,6 @@ def main() -> None:
     print(f"  Source:      {config.camera.source}")
     print(f"  Mode:        {config.camera.mode}")
     print(f"  Resolution:  {config.camera.frame_width}x{config.camera.frame_height}")
-    print(f"  Skip frames: process every {config.performance.process_every_n_frames}")
-    print(f"  Pest check:  every {config.performance.pest_check_every_n_frames} frames")
     print(f"  Visualization: {'ON' if config.performance.enable_visualization else 'OFF'}")
     print("=" * 60)
 
@@ -98,11 +97,11 @@ def main() -> None:
     detector = Detector(config, model_manager, state_machine, logger)
 
     visualizer: Visualizer | None = None
-    if config.performance.enable_visualization or config.output.save_video:
+    if config.performance.enable_visualization or config.output.save_video or (frame_callback is not None):
         visualizer = Visualizer(config.display, state_machine)
 
     # ── Main Processing Loop ──
-    print("\n[Run] Starting processing loop... (press 'q' to quit)\n")
+    print("\n[Run] Starting processing loop...\n")
 
     camera = CameraStream(config.camera)
     camera.open()
@@ -112,7 +111,6 @@ def main() -> None:
         out_dir = Path(config.output.output_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         
-        # Derive output filename from input source
         source_name = TelemetryLogger._derive_source_name(config.camera.source)
         out_filename = f"{source_name}-output.mp4"
         out_path = out_dir / out_filename
@@ -135,7 +133,6 @@ def main() -> None:
                     print("\n[Run] End of video file reached.")
                     break
                 else:
-                    # RTSP: brief retry
                     time.sleep(0.1)
                     continue
 
@@ -153,6 +150,10 @@ def main() -> None:
                     output.pest_detections or None,
                 )
             
+            # Send to callback for MJPEG streaming
+            if frame_callback is not None:
+                frame_callback(frame_to_write)
+
             if config.performance.enable_visualization and visualizer is not None:
                 if not visualizer.show(frame_to_write):
                     print("\n[Run] User quit (pressed 'q').")
@@ -181,6 +182,16 @@ def main() -> None:
             visualizer.cleanup()
         print("\n[Done] Kitchen-Cam stopped. Check logs/ for event records.")
 
+
+def main() -> None:
+    """Main application loop from CLI."""
+    args = parse_args()
+    
+    # We apply the overrides and call the reusable function
+    run_pipeline(
+        source=args.source,
+        config_path=args.config
+    )
 
 if __name__ == "__main__":
     main()
